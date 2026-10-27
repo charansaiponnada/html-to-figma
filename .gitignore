@@ -1,0 +1,4 @@
+node_modules/
+*.figma.json
+_*.html
+.DS_Store

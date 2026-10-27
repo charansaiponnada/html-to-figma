@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "HTML to Figma",
+  "version": "1.0.0",
+  "description": "Copy any web page, or part of it, into Figma as editable layers.",
+  "action": { "default_popup": "popup.html", "default_title": "Copy page to Figma" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab", "scripting", "storage", "offscreen", "clipboardWrite", "downloads"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "capture-page": {
+      "suggested_key": { "default": "Alt+Shift+F" },
+      "description": "Copy the current page to Figma using the saved options"
+    }
+  }
+}

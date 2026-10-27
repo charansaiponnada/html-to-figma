@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Capture fixture</title>
+<style>
+  body { margin: 0; font: 16px/1.5 "Helvetica Neue", Arial, sans-serif; color: #222; background: #f6f7f9; }
+  header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: #111; color: #fff; }
+  header nav { display: flex; gap: 16px; }
+  header a { color: #fff; text-decoration: none; text-transform: uppercase; letter-spacing: .05em; font-size: 13px; }
+  .badge { position: relative; padding: 4px 10px; }
+  .badge::after { content: "3"; position: absolute; top: -6px; right: -10px; width: 18px; height: 18px; border-radius: 50%; background: #e5484d; color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+  main { max-width: 760px; margin: 32px auto; padding: 0 24px; }
+  h1 { font-size: 40px; line-height: 48px; margin: 0 0 8px; background: linear-gradient(90deg, #6e56cf, #e5484d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { color: #555; }
+  .lead b { color: #000; }
+  .card { margin: 24px 0; padding: 20px; border-radius: 16px; background: linear-gradient(135deg, #fff 0%, #eef2ff 100%); box-shadow: 0 8px 24px rgba(0,0,0,.08), inset 0 0 0 1px rgba(0,0,0,.04); border-left: 4px solid #6e56cf; }
+  .row { display: flex; gap: 12px; align-items: center; }
+  .btn { padding: 10px 16px; border-radius: 8px; background: #6e56cf; color: #fff; border: 0; font: 600 14px/1 inherit; }
+  .btn.ghost { background: transparent; color: #6e56cf; border: 1px dashed #6e56cf; }
+  .btn::before { content: "★ "; }
+  img { display: block; border-radius: 12px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .hidden { display: none; }
+  ul { padding-left: 24px; }
+  ol { padding-left: 28px; }
+  input[type=text] { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; width: 220px; font: inherit; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid div { height: 60px; border-radius: 8px; background: oklch(70% 0.15 250); }
+  .grid div:nth-child(2) { background: hsl(140 60% 50% / .5); }
+  .grid div:nth-child(3) { background: radial-gradient(circle, #ffd60a, transparent); }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px; font: 13px/1.4 ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Acme</strong>
+  <nav><a href="#">Home</a><a href="#">Docs</a><a class="badge" href="#">Inbox</a></nav>
+</header>
+<main>
+  <h1>Gradient headline</h1>
+  <p class="lead">A paragraph with <b>bold text</b>, <i>italics</i> and a <a href="#">link</a> that is long enough to wrap onto a second line in the layout so we can test wrapping.</p>
+  <span class="sr-only">Screen reader only</span>
+  <div class="hidden">Never shown</div>
+  <div class="card">
+    <div class="row">
+      <img alt="Avatar" width="64" height="64" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' fill='%236e56cf'/><circle cx='32' cy='26' r='12' fill='white'/></svg>">
+      <div>
+        <div style="font-weight:600">Card title</div>
+        <div style="font-size:14px;color:#666">Second line of the card</div>
+      </div>
+      <svg width="24" height="24" viewBox="0 0 24 24" style="color:#e5484d"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z" fill="currentColor"/></svg>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn">Primary</button>
+      <button class="btn ghost">Secondary</button>
+      <input type="text" placeholder="Search…">
+      <label><input type="checkbox" checked> Remember</label>
+    </div>
+  </div>
+  <ul><li>First bullet</li><li>Second bullet</li></ul>
+  <ol><li>One</li><li>Two</li><li>Three</li></ol>
+  <div class="grid"><div></div><div></div><div></div></div>
+  <pre>const x = 1;
+console.log(x);</pre>
+  <canvas id="c" width="120" height="40"></canvas>
+  <iframe srcdoc="<body style='margin:0;font:14px sans-serif;background:#fffbe6'><p style='margin:8px'>Inside a same-origin iframe</p></body>" width="300" height="50" style="border:1px solid #ddd"></iframe>
+</main>
+<script>
+  const g = document.getElementById('c').getContext('2d');
+  g.fillStyle = '#0d99ff'; g.fillRect(0, 0, 120, 40); g.fillStyle = '#fff'; g.font = '16px sans-serif'; g.fillText('canvas', 30, 26);
+</script>
+<script src="../extension/capture.js"></script>
+<script src="../extension/svg.js"></script>
+</body>
+</html>

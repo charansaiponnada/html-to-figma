@@ -1,0 +1,142 @@
+<style>
+  body { margin: 0; padding: 16px; font: 12px/1.45 Inter, system-ui, sans-serif; color: var(--figma-color-text, #1e1e1e); background: var(--figma-color-bg, #fff); }
+  #drop { border: 1.5px dashed var(--figma-color-border, #ccc); border-radius: 8px; padding: 26px 14px; text-align: center; outline: none; cursor: text; }
+  #drop:focus, #drop.over { border-color: var(--figma-color-border-selected, #0d99ff); background: var(--figma-color-bg-selected, #e5f4ff); }
+  #drop b { display: block; font-size: 13px; margin-bottom: 4px; }
+  .muted { color: var(--figma-color-text-secondary, #6b6b6b); }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  progress { width: 100%; margin-top: 12px; }
+  #log { margin-top: 10px; white-space: pre-wrap; }
+  #log.error { color: var(--figma-color-text-danger, #e5484d); }
+  button { font: inherit; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--figma-color-border, #ccc); background: none; color: inherit; cursor: pointer; }
+</style>
+
+<div id="drop" tabindex="0">
+  <b>Click here, then press Ctrl+V (⌘V)</b>
+  <span class="muted">Paste a page copied with the HTML to Figma Chrome extension. SVG markup also works. You can drop a .json file here too.</span>
+</div>
+<div class="row">
+  <button id="pickFile" type="button">Open .json file…</button>
+  <input id="file" type="file" accept=".json,.svg,application/json,image/svg+xml" hidden>
+</div>
+<label class="row"><input type="checkbox" id="vector" checked> Turn SVG images into editable vectors</label>
+<progress id="bar" hidden></progress>
+<div id="log" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = (text, error) => { $('log').textContent = text; $('log').className = error ? 'error' : ''; };
+const send = msg => parent.postMessage({ pluginMessage: msg }, '*');
+let busy = false;
+
+$('drop').focus();
+document.addEventListener('paste', e => { e.preventDefault(); handle(e.clipboardData.getData('text/plain')); });
+$('pickFile').onclick = () => $('file').click();
+$('file').onchange = async e => { const f = e.target.files[0]; if (f) handle(await f.text()); e.target.value = ''; };
+$('drop').ondragover = e => { e.preventDefault(); $('drop').classList.add('over'); };
+$('drop').ondragleave = () => $('drop').classList.remove('over');
+$('drop').ondrop = async e => { e.preventDefault(); $('drop').classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handle(await f.text()); };
+
+onmessage = e => {
+  const m = e.data.pluginMessage;
+  if (!m) return;
+  if (m.type === 'progress') { $('bar').hidden = false; $('bar').max = m.total; $('bar').value = m.done; log(`Building layers ${m.done}/${m.total}…`); }
+  else if (m.type === 'status') log(m.text);
+  else if (m.type === 'done') {
+    busy = false; $('bar').hidden = true;
+    const s = m.stats, notes = [];
+    if (s.missingFonts.length) notes.push(`Fonts not available in Figma, replaced: ${s.missingFonts.slice(0, 8).join(', ')}${s.missingFonts.length > 8 ? '…' : ''}`);
+    if (s.imagesFailed) notes.push(`${s.imagesFailed} image(s) couldn't be loaded (grey boxes).`);
+    if (s.errors) notes.push(`${s.errors} layer(s) were skipped.`);
+    log(`Done: ${s.layers} layers.\n` + notes.join('\n'));
+  } else if (m.type === 'error') { busy = false; $('bar').hidden = true; log(m.message, true); }
+};
+
+async function handle(text) {
+  if (busy) return;
+  text = (text || '').trim();
+  if (!text) return log('The clipboard is empty. Copy a page with the Chrome extension first.', true);
+  if (/^(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(text)) { busy = true; log('Importing SVG…'); return send({ type: 'svg', svg: text }); }
+  let p;
+  try { p = JSON.parse(text); } catch { return log('The clipboard doesn\'t contain a page capture. Copy one with the Chrome extension, then try again.', true); }
+  if (!p || p.format !== 'html-to-figma') return log('This JSON wasn\'t made by the HTML to Figma extension.', true);
+  busy = true;
+  try {
+    const images = await prepareImages(p.images || {}, $('vector').checked);
+    log('Building layers…');
+    const { images: _, ...payload } = p;
+    send({ type: 'import', payload, images });
+  } catch (e) {
+    busy = false;
+    log(e.message || String(e), true);
+  }
+}
+
+// ---------- images: Figma takes PNG/JPEG/GIF up to 4096px, so convert anything else here ----------
+async function prepareImages(map, vector) {
+  const entries = Object.entries(map), out = {};
+  let done = 0;
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(6, entries.length) }, async () => {
+    while (i < entries.length) {
+      const [id, im] = entries[i++];
+      const r = {};
+      try {
+        if (im.svg) {
+          if (vector && im.node) r.svg = im.svg;
+          r.bytes = await rasterSvg(im.svg); // used for fills, and as a fallback if the vector import fails
+        } else if (im.data) r.bytes = await toFigmaBytes(im.data);
+      } catch (e) { /* stays empty: shown as a grey box */ }
+      out[id] = r;
+      log(`Preparing images ${++done}/${entries.length}…`);
+    }
+  }));
+  return out;
+}
+
+function dataUrlBytes(url) {
+  const i = url.indexOf(',');
+  const meta = url.slice(5, i), body = url.slice(i + 1);
+  if (meta.includes('base64')) {
+    const bin = atob(body), b = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) b[k] = bin.charCodeAt(k);
+    return b;
+  }
+  return new TextEncoder().encode(decodeURIComponent(body));
+}
+
+const isPng = b => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+const isJpg = b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+const isGif = b => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46;
+
+async function toFigmaBytes(url) {
+  const bytes = dataUrlBytes(url);
+  const native = isPng(bytes) || isJpg(bytes) || isGif(bytes);
+  const bmp = await createImageBitmap(new Blob([bytes]));
+  if (native && bmp.width <= 4096 && bmp.height <= 4096) { bmp.close(); return bytes; }
+  return encode(bmp, bmp.width, bmp.height, 1, isJpg(bytes) ? 'image/jpeg' : 'image/png');
+}
+
+function rasterSvg(svg) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth || 300, h = img.naturalHeight || 150;
+      encode(img, w, h, Math.min(3, 4096 / Math.max(w, h)), 'image/png').then(resolve, reject);
+    };
+    img.onerror = () => reject(new Error('bad svg'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+
+async function encode(source, w, h, scale, type) {
+  const s = Math.min(scale, 4096 / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * s));
+  c.height = Math.max(1, Math.round(h * s));
+  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, type, 0.92));
+  if (!blob) throw new Error('encode failed');
+  return new Uint8Array(await blob.arrayBuffer());
+}
+</script>
